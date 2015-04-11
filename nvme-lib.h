@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include "nvme.h"
+#include "sg.h"
 
 
 int lib_nvme_write(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
