@@ -29,7 +29,12 @@ int lib_nvme_identify(int fd, int nsid, void *ptr, int cns);
 
 int lib_nvme_nsze(int fd, int nsid);
 
+int lib_nvme_lba_size(int fd, int nsid);
+
+int lib_nvme_metadata_size(int fd, int nsid);
+
 int lib_nvme_awun_size(int fd, int nsid);
 
 int lib_nvme_awupf_size(int fd, int nsid);
 
+int lib_nvme_mdts(int fd, int nsid);

@@ -23,9 +23,12 @@ int main(){
 	printf("get awun return:%d\n",lib_nvme_get_awun(fd, 0));
 
 	// get nvme info
-	printf("ns size:%d\n",lib_nvme_nsze(fd,nsid));
+	printf("namespace size:%d\n",lib_nvme_nsze(fd,nsid));
+	printf("LBA data size:%d\n",lib_nvme_lba_size(fd,nsid));
+	printf("metadata size:%d\n",lib_nvme_metadata_size(fd,nsid));
 	printf("awun size:%d\n",lib_nvme_awun_size(fd,nsid));
 	printf("awupf size:%d\n",lib_nvme_awupf_size(fd,nsid));
+	printf("maximum data transfer size:%d\n", lib_nvme_mdts(fd,nsid));
 
 	// init read
 	char data0[4096] = "";

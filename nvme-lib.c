@@ -245,6 +245,18 @@ int lib_nvme_nsze(int fd, int nsid){
 	return ns.nsze;
 }
 
+int lib_nvme_lba_size(int fd, int nsid){
+	struct nvme_id_ns ns;
+	lib_nvme_identify(fd, nsid, &ns, 0);
+	return 1 << (ns.lbaf[0].ds);
+}
+
+int lib_nvme_metadata_size(int fd, int nsid){
+	struct nvme_id_ns ns;
+	lib_nvme_identify(fd, nsid, &ns, 0);
+	return ns.lbaf[0].ms;
+}
+
 int lib_nvme_awun_size(int fd, int nsid){
 	struct nvme_id_ctrl ctrl;
 	lib_nvme_identify(fd, nsid, &ctrl, 1);
@@ -255,6 +267,13 @@ int lib_nvme_awupf_size(int fd, int nsid){
 	struct nvme_id_ctrl ctrl;
 	lib_nvme_identify(fd, nsid, &ctrl, 1);
 	return ctrl.awupf;
+}
+
+// maximum data transfer size
+int lib_nvme_mdts(int fd, int nsid){
+	struct nvme_id_ctrl ctrl;
+	lib_nvme_identify(fd, nsid, &ctrl, 1);
+	return (ctrl.mdts == 0) ? 0 : (1 << ctrl.mdts);
 }
 
 /*
