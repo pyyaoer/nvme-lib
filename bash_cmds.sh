@@ -5,7 +5,7 @@ gcc -shared -o libnvme.so nvme-lib.o
 
 sudo mv libnvme.so /usr/lib
 
-LD_LIBRARY_PATH=.
+#LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH="/usr/local/lib"
 
-gcc test.c -L. -lnvme
-
+gcc max_write_data_test.c -L. -lnvme

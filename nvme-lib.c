@@ -1,6 +1,9 @@
 #include "nvme-lib.h"
 
-int lib_nvme_write(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba){
+static uint64_t rw_max_size = 256;
+static uint64_t lba_size = 512;
+
+int lib_nvme_write_core(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba){
 	if (fd < 0)
 		return -1;
 
@@ -19,7 +22,25 @@ int lib_nvme_write(int fd, int nsid, char* base, uint64_t len, uint64_t start_lb
 	return err;
 }
 
-int lib_nvme_read(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba){
+int lib_nvme_write(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba){
+	if (len < rw_max_size){
+		return lib_nvme_write_core(fd, nsid, base, len, start_lba);
+	}
+	else{
+		int num = len / rw_max_size;
+		int tail = len % rw_max_size;
+		int i;
+		for (i = 0; i < num; ++i){
+			int tlen = (i == (num-1)) ? tail : rw_max_size;
+			int err = lib_nvme_write_core(fd, nsid, base+i*rw_max_size, tlen, start_lba+i*rw_max_size/lba_size);
+			if(err < 0)
+				return err;
+		}
+	}
+	return 0;
+}
+
+int lib_nvme_read_core(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba){
 	if (fd < 0)
 		return -1;
 
@@ -39,6 +60,24 @@ int lib_nvme_read(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba
 	return err;
 }
 
+int lib_nvme_read(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba){
+	if (len < rw_max_size){
+		return lib_nvme_read_core(fd, nsid, base, len, start_lba);
+	}
+	else{
+		int num = len / rw_max_size;
+		int tail = len % rw_max_size;
+		int i;
+		for (i = 0; i < num; ++i){
+			int tlen = (i == (num-1)) ? tail : rw_max_size;
+			int err = lib_nvme_read_core(fd, nsid, base+i*rw_max_size, tlen, start_lba+i*rw_max_size/lba_size);
+			if(err < 0)
+				return err;
+		}
+	}
+	return 0;
+}
+
 int lib_nvme_flush(int fd, int nsid){
 	if (fd < 0)
 		return -1;
@@ -55,59 +94,6 @@ int lib_nvme_flush(int fd, int nsid){
 	}
 	return err;
 }
-
-/*
-int lib_nvme_unmap(int fd, int nsid, uint64_t start_lba, unsigned nlb){
-	if (fd < 0)
-		return -1;
-
-	struct nvme_dsm_range range;
-	memset(&range, 0, sizeof(range));
-	range.nlb = nlb;
-	range.slba = start_lba;
-
-	struct nvme_dsm_cmd cmd;
-	memset(&cmd, 0, sizeof(cmd));
-
-	cmd.opcode = nvme_cmd_dsm;
-	cmd.nsid = nsid;
-	cmd.prp1 = (unsigned long)&range;
-	cmd.nr = 0;
-	cmd.attributes = NVME_DSMGMT_AD;
-
-	int err = ioctl(fd, NVME_IOCTL_ADMIN_CMD, &cmd);
-
-	if (err < 0){
-		printf("lib_nvme_unmap:%d\n", errno);
-	}
-	return err;
-}
-*/
-/*
-int lib_nvme_unmap(int fd, int nsid, uint64_t start_lba, unsigned nlb){
-	struct nvme_dsm_range *range;
-	range = (struct nvme_dsm_range*)malloc(sizeof(struct nvme_dsm_range));
-	range[0].nlb = nlb;
-	range[0].slba = start_lba;
-	range[0].cattr = 0;
-
-	struct nvme_command c;
-	memset(&c, 0, sizeof(c));
-	c.dsm.opcode = nvme_cmd_dsm;
-	c.dsm.nsid = nsid;
-	c.dsm.prp1 = (uint64_t)range;
-	c.dsm.nr = 0;
-	c.dsm.attributes = NVME_DSMGMT_AD;
-
-	int err = ioctl(fd, NVME_IOCTL_ADMIN_CMD, &c);
-
-	if (err < 0){
-		printf("lib_nvme_unmap:%d\n", errno);
-	}
-	free(range);
-	return err;
-}
-*/
 
 #define MAX_NUM_ADDR 128
 #define SENSE_BUFF_LEN 64

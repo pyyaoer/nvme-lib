@@ -15,6 +15,10 @@ int lib_nvme_write(int fd, int nsid, char* base, uint64_t len, uint64_t start_lb
 
 int lib_nvme_read(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
 
+int lib_nvme_write_core(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
+
+int lib_nvme_read_core(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
+
 int lib_nvme_flush(int fd, int nsid);
 
 int lib_nvme_unmap(int fd, int nsid, uint64_t start_lba, unsigned nlb);
