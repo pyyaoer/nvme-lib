@@ -8,4 +8,4 @@ sudo mv libnvme.so /usr/lib
 #LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH="/usr/local/lib"
 
-gcc max_write_data_test.c -L. -lnvme
+gcc iovec_test.c -L. -lnvme -lpthread
