@@ -3,6 +3,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -10,6 +11,7 @@
 #include <stdint.h>
 #include <sched.h>
 #include <unistd.h>
+#include <linux/aio_abi.h>
 #include "nvme.h"
 #include "sg.h"
 
@@ -37,13 +39,17 @@ typedef struct arg_struct {
 } arg_struct_t;
 
 
+int lib_nvme_write_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos);
+
+int lib_nvme_read_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos);
+
 int lib_nvme_write(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
 
 int lib_nvme_read(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
 
-int lib_nvme_write_core(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
+int lib_nvme_write_ioctl(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
 
-int lib_nvme_read_core(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
+int lib_nvme_read_ioctl(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
 
 int lib_nvme_batch_cmd(int fd, int nsid, const nvme_iovec_t *iov, uint32_t iovcnt);
 

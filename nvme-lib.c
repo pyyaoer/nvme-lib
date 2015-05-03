@@ -3,8 +3,26 @@
 
 static uint64_t rw_max_size = 256;
 static uint64_t lba_size = 512;
+//pthread_mutex_t mymutex=PTHREAD_MUTEX_INITIALIZER;
 
-int lib_nvme_write_core(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba){
+inline int io_setup(unsigned nr, aio_context_t *ctxp){
+	return syscall(__NR_io_setup, nr, ctxp);
+}
+
+inline int io_submit(aio_context_t ctx, long nr, struct iocb **iocbpp){
+	return syscall(__NR_io_submit, ctx, nr, iocbpp);
+}
+
+inline int io_getevents(aio_context_t ctx, long min_nr, long max_nr, struct io_event *events, struct timespec *timeout){
+	return syscall(__NR_io_getevents, ctx, min_nr, max_nr, events, timeout);
+}
+
+inline int io_destroy(aio_context_t ctx){
+	return syscall(__NR_io_destroy, ctx);
+}
+
+
+int lib_nvme_write_ioctl(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba){
 	if (fd < 0)
 		return -1;
 
@@ -18,30 +36,112 @@ int lib_nvme_write_core(int fd, int nsid, char* base, uint64_t len, uint64_t sta
 	int err = ioctl(fd, NVME_IOCTL_SUBMIT_IO, &io);
 
 	if (err < 0){
-		printf("lib_nvme_write_core:%d\n", errno);
+		printf("lib_nvme_write_ioctl:%d\n", errno);
 	}
 	return err;
 }
 
+int lib_nvme_write_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos){
+	aio_context_t ctx;
+	struct iocb cb;
+	struct iocb *cbs[1];
+	struct io_event events[1];
+	int ret;
+
+	ctx = 0;
+	ret = io_setup(128, &ctx);
+	if (ret < 0){
+		printf("io_setup error");
+		return ret;
+	}
+
+	memset(&cb, 0, sizeof(cb));
+	cb.aio_fildes = fd;
+	cb.aio_lio_opcode = IOCB_CMD_PWRITE;
+
+	cb.aio_buf = (uint64_t)base;
+	cb.aio_offset = start_pos;
+	cb.aio_nbytes = len;
+
+	cbs[0] = &cb;
+	ret = io_submit(ctx, 1, cbs);
+	if (ret != 1){
+		if (ret < 0)
+			printf("io_submit error!");
+		else
+			printf("io_submit cannot submit IOs!");
+		return ret;
+	}
+
+	ret = io_getevents(ctx, 1, 1, events, NULL);
+	ret = io_destroy(ctx);
+	if (ret < 0){
+		printf("io_destroy error!");
+		return ret;
+	}
+	return 0;
+}
+
+int lib_nvme_read_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos){
+	aio_context_t ctx;
+	struct iocb cb;
+	struct iocb *cbs[1];
+	struct io_event events[1];
+	int ret;
+
+	ctx = 0;
+	ret = io_setup(128, &ctx);
+	if (ret < 0){
+		printf("io_setup error");
+		return ret;
+	}
+
+	memset(&cb, 0, sizeof(cb));
+	cb.aio_fildes = fd;
+	cb.aio_lio_opcode = IOCB_CMD_PREAD;
+
+	cb.aio_buf = (uint64_t)base;
+	cb.aio_offset = start_pos;
+	cb.aio_nbytes = len;
+
+	cbs[0] = &cb;
+	ret = io_submit(ctx, 1, cbs);
+	if (ret != 1){
+		if (ret < 0)
+			printf("io_submit error!");
+		else
+			printf("io_submit cannot submit IOs!");
+		return ret;
+	}
+
+	ret = io_getevents(ctx, 1, 1, events, NULL);
+	ret = io_destroy(ctx);
+	if (ret < 0){
+		printf("io_destroy error!");
+		return ret;
+	}
+	return 0;
+}
+
 int lib_nvme_write(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba){
 	if (len < rw_max_size){
-		return lib_nvme_write_core(fd, nsid, base, len, start_lba);
+		return lib_nvme_write_ioctl(fd, nsid, base, len, start_lba);
 	}
 	else{
 		int num = len / rw_max_size;
 		int tail = len % rw_max_size;
 		int i, err;
 		for (i = 0; i < num; ++i){
-			err = lib_nvme_write_core(fd, nsid, base+i*rw_max_size*lba_size, rw_max_size-1, start_lba+i*rw_max_size);
+			err = lib_nvme_write_ioctl(fd, nsid, base+i*rw_max_size*lba_size, rw_max_size-1, start_lba+i*rw_max_size);
 			if(err < 0)
 				return err;
 		}
-		err = lib_nvme_write_core(fd, nsid, base+num*rw_max_size, tail, start_lba+i*rw_max_size);
+		err = lib_nvme_write_ioctl(fd, nsid, base+num*rw_max_size, tail, start_lba+i*rw_max_size);
 	}
 	return 0;
 }
 
-int lib_nvme_read_core(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba){
+int lib_nvme_read_ioctl(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba){
 	if (fd < 0)
 		return -1;
 
@@ -56,25 +156,25 @@ int lib_nvme_read_core(int fd, int nsid, char* base, uint64_t len, uint64_t star
 	int err = ioctl(fd, NVME_IOCTL_SUBMIT_IO, &io);
 
 	if (err < 0){
-		printf("lib_nvme_read_core:%d\n", errno);
+		printf("lib_nvme_read_ioctl:%d\n", errno);
 	}
 	return err;
 }
 
 int lib_nvme_read(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba){
 	if (len < rw_max_size){
-		return lib_nvme_read_core(fd, nsid, base, len, start_lba);
+		return lib_nvme_read_ioctl(fd, nsid, base, len, start_lba);
 	}
 	else{
 		int num = len / rw_max_size;
 		int tail = len % rw_max_size;
 		int i, err;
 		for (i = 0; i < num; ++i){
-			err = lib_nvme_read_core(fd, nsid, base+i*rw_max_size*lba_size, rw_max_size-1, start_lba+i*rw_max_size);
+			err = lib_nvme_read_ioctl(fd, nsid, base+i*rw_max_size*lba_size, rw_max_size-1, start_lba+i*rw_max_size);
 			if(err < 0)
 				return err;
 		}
-		err = lib_nvme_read_core(fd, nsid, base+num*rw_max_size, tail, start_lba+i*rw_max_size);
+		err = lib_nvme_read_ioctl(fd, nsid, base+num*rw_max_size, tail, start_lba+i*rw_max_size);
 	}
 	return 0;
 }
@@ -88,6 +188,7 @@ inline int set_cpu(int i){
 }
 
 void* lib_nvme_single_cmd(void* args){
+//	pthread_mutex_lock(&mymutex);
 	arg_struct_t* pargs = (arg_struct_t*)args;
 	if(set_cpu(pargs->cpu) < 0)
 		printf("Set CPU error.\n");
@@ -104,6 +205,7 @@ void* lib_nvme_single_cmd(void* args){
 		default:
 			printf("Invalid opcode!\n");
 	}
+//	pthread_mutex_unlock(&mymutex);
 	return NULL;
 }
 

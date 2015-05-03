@@ -25,13 +25,13 @@ void read_result(){
 
 void* write_test(void* a){
 	struct arg_struct* pargs = (struct arg_struct*)a;
-	printf("Write %c cmd return: %d\n", pargs->c, lib_nvme_write_core(pargs->fd, pargs->nsid, pargs->data, 0, 0x500));
+	printf("Write %c cmd return: %d\n", pargs->c, lib_nvme_write_ioctl(pargs->fd, pargs->nsid, pargs->data, 0, 0x500));
 	return NULL;
 }
 
 void* read_test(void* a){
 	struct arg_struct* pargs = (struct arg_struct*)a;
-	printf("Read %c cmd return: %d\n", pargs->c, lib_nvme_read_core(pargs->fd, pargs->nsid, pargs->data, 0, 0x500));
+	printf("Read %c cmd return: %d\n", pargs->c, lib_nvme_read_ioctl(pargs->fd, pargs->nsid, pargs->data, 0, 0x500));
 	return NULL;
 }
 

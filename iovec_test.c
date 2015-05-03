@@ -24,8 +24,8 @@ int main(){
 
 	for (i = 0; i < IOVN; ++i){
 		iovec[i].iov_base = (uint64_t)data5;
-		iovec[i].iov_len = sizeof(data5)/ 512;
-		iovec[i].iov_lba = rand() % 4096;
+		iovec[i].iov_len = sizeof(data5)/512;
+		iovec[i].iov_lba = rand()%4096;
 		iovec[i].iov_opcode = NVME_IOV_WRITE;
 	}
 
