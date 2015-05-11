@@ -12,6 +12,7 @@
 #include <sched.h>
 #include <unistd.h>
 #include <linux/aio_abi.h>
+#include <scsi/scsi.h>
 #include "nvme.h"
 #include "sg.h"
 
@@ -19,7 +20,7 @@
 #define NVME_IOV_READ 0X02
 #define NVME_IOV_TRIM 0x03
 
-#define MY_CPU_NUM 8
+#define MY_CPU_NUM 16
 
 typedef struct nvme_iovec {
 	uint64_t iov_base;
@@ -38,10 +39,23 @@ typedef struct arg_struct {
 	uint64_t start_lba;
 } arg_struct_t;
 
+//just for test
+typedef struct arg_write_struct {
+	int cpu;
+	int fd;
+	char* base;
+	uint64_t len;
+	uint64_t start_pos;
+} arg_write_struct_t;
+void* lib_nvme_write_single_sync(void* args);
+int lib_nvme_batch_sync(int* fd, uint64_t* base, uint64_t* len, uint64_t* start_pos, int thread_num);
+//test end
 
-int lib_nvme_write_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos);
+int lib_nvme_write_iosubmit_single(int fd, char* base, uint64_t len, uint64_t start_pos, int thread_num);
 
-int lib_nvme_read_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos);
+int lib_nvme_write_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos, int thread_num);
+
+int lib_nvme_read_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos, int thread_num);
 
 int lib_nvme_write(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
 
@@ -54,6 +68,10 @@ int lib_nvme_read_ioctl(int fd, int nsid, char* base, uint64_t len, uint64_t sta
 int lib_nvme_batch_cmd(int fd, int nsid, const nvme_iovec_t *iov, uint32_t iovcnt);
 
 int lib_nvme_flush(int fd, int nsid);
+
+int lib_nvme_read_scsi(int fd, char* base, uint64_t len, uint64_t start_lba);
+
+int lib_nvme_write_scsi(int fd, char* base, uint64_t len, uint64_t start_lba);
 
 int lib_nvme_unmap(int fd, int nsid, unsigned nlb, uint64_t start_lba);
 

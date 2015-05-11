@@ -8,4 +8,4 @@ sudo mv libnvme.so /usr/lib
 #LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH="/usr/local/lib"
 
-gcc iosubmit_test.c -L. -lnvme -lpthread
+gcc scsi_test.c -L. -lnvme -lpthread

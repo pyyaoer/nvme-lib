@@ -24,7 +24,7 @@ int main(){
 
 	// write data: 0~255 logical blocks
 	char data1[4096 * 64] = "";
-	for(i = 0; i < sizeof(data1); i ++)
+	for(i = 0; i < sizeof(data1); ++i)
 		data1[i] = 'w';
 	printf("\nWriting LBA 0~255.\n");
 	printf("Write cmd return: %d\n",lib_nvme_write_ioctl(fd, nsid, data1, 255, 0x0));

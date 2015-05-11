@@ -3,7 +3,55 @@
 
 static uint64_t rw_max_size = 256;
 static uint64_t lba_size = 512;
-//pthread_mutex_t mymutex=PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mymutex=PTHREAD_MUTEX_INITIALIZER;
+
+
+//just for test
+void* lib_nvme_write_single_sync(void* args){
+	arg_write_struct_t* pargs = (arg_write_struct_t*)args;
+	if(set_cpu(pargs->cpu) < 0)
+		printf("Set CPU error\n");
+	if (lseek(pargs->fd, pargs->start_pos, SEEK_SET) < 0){
+		printf("fd=%d lseek fail!\n", pargs->fd);
+		return NULL;
+	}
+//	printf("fd=%d, base=%ld, len=%ld, pos=%ld\n", pargs->fd, pargs->base, pargs->len, pargs->start_pos);
+	if (write(pargs->fd, pargs->base, pargs->len) < 0){
+		printf("errno: %d\n", errno);
+	}
+	return NULL;
+}
+
+int lib_nvme_batch_sync(int* fd, uint64_t* base, uint64_t* len, uint64_t* start_pos, int thread_num){
+	int i, cpu = 0, err;
+	arg_write_struct_t* args = malloc(thread_num*sizeof(arg_write_struct_t));
+	pthread_t* tid = malloc(thread_num*sizeof(pthread_t));
+	for (i = 0; i < thread_num; ++i){
+		args[i].cpu = cpu;
+		args[i].fd = fd[i];
+		args[i].base = (char*)base[i];
+		args[i].len = len[i];
+		args[i].start_pos = start_pos[i];
+		cpu = (cpu + 1) % MY_CPU_NUM;
+	}
+	for (i = 0; i < thread_num; ++i){
+		if (err = pthread_create(&tid[i], NULL, &lib_nvme_write_single_sync, (void*)&args[i])){
+			printf("ERROR creating threads!\n");
+			goto exit;
+		}
+	}
+	for (i = 0; i < thread_num; ++i){
+		if(err = pthread_join(tid[i], NULL)){
+			printf("ERROR joining threads!\n");
+			goto exit;
+		}
+	}
+exit:
+	free(tid);
+	free(args);
+	return err;
+}
+//test end
 
 inline int io_setup(unsigned nr, aio_context_t *ctxp){
 	return syscall(__NR_io_setup, nr, ctxp);
@@ -41,7 +89,74 @@ int lib_nvme_write_ioctl(int fd, int nsid, char* base, uint64_t len, uint64_t st
 	return err;
 }
 
-int lib_nvme_write_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos){
+int lib_nvme_write_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos, int thread_num){
+	int i;
+	uint64_t blk_len = 1;
+	uint64_t blk_num = 0;
+	uint64_t blk_tail = 0;
+
+	while (blk_len * thread_num < len){
+		blk_len = blk_len << 1;
+	}
+
+	blk_tail = len % blk_len;
+
+	if (blk_tail != 0){
+		blk_num = len / blk_len + 1;
+	}
+	else{
+		blk_num = len / blk_len;
+		blk_tail = blk_len;
+	}
+
+	aio_context_t ctx = 0;
+	int ret = 0;
+	ret = io_setup(128, &ctx);
+	if (ret < 0){
+		printf("io_setup error");
+		return ret;
+	}
+
+	struct iocb *cb = malloc(blk_num*sizeof(struct iocb));
+	struct iocb **cbs = malloc(blk_num*sizeof(struct iocb*));
+	struct io_event *events = malloc(blk_num*sizeof(struct io_event));
+
+	for (i = 0; i < blk_num; ++i){
+		memset(&cb[i], 0, sizeof(cb[i]));
+		cb[i].aio_fildes = fd;
+		cb[i].aio_lio_opcode = IOCB_CMD_PWRITE;
+
+		cb[i].aio_buf = (uint64_t)base + i*blk_len;
+		cb[i].aio_offset = start_pos + i*blk_len;
+		cb[i].aio_nbytes = blk_len;
+
+		cbs[i] = &cb[i];
+	}
+	cb[blk_num-1].aio_nbytes = blk_tail;
+	ret = io_submit(ctx, blk_num, cbs);
+	if (ret != blk_num){
+		if (ret < 0)
+			printf("io_submit error!\n");
+		else
+			printf("io_submit cannot submit IOs!\n");
+		goto exit;
+	}
+
+	ret = io_getevents(ctx, blk_num, blk_num, events, NULL);
+	ret = io_destroy(ctx);
+	if (ret < 0){
+		printf("io_destroy error!");
+		goto exit;
+	}
+exit:
+	free(cb);
+	free(cbs);
+	free(events);
+	return ret;
+}
+
+
+int lib_nvme_write_iosubmit_single(int fd, char* base, uint64_t len, uint64_t start_pos, int thread_num){
 	aio_context_t ctx;
 	struct iocb cb;
 	struct iocb *cbs[1];
@@ -82,7 +197,7 @@ int lib_nvme_write_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos
 	return 0;
 }
 
-int lib_nvme_read_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos){
+int lib_nvme_read_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos, int thread_num){
 	aio_context_t ctx;
 	struct iocb cb;
 	struct iocb *cbs[1];
@@ -183,7 +298,7 @@ inline int set_cpu(int i){
 	cpu_set_t mask;
 	CPU_ZERO(&mask);
 	CPU_SET(i,&mask);
-	printf("thread %u, i= %d\n", pthread_self(), i);
+//	printf("thread %u, i= %d\n", pthread_self(), i);
 	return pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
 }
 
@@ -226,13 +341,13 @@ int lib_nvme_batch_cmd(int fd, int nsid, const nvme_iovec_t *iov, uint32_t iovcn
 		cpu = (cpu + 1) % MY_CPU_NUM;
 	}
 	for (i = 0; i < iovcnt; ++i){
-		if (pthread_create(&tid[i], NULL, &lib_nvme_single_cmd, (void*)&args[i])){
+		if (err = pthread_create(&tid[i], NULL, &lib_nvme_single_cmd, (void*)&args[i])){
 			printf("ERROR creating thread!\n");
 			goto exit;
 		}
 	}
 	for (i = 0; i < iovcnt; ++i){
-		if (pthread_join(tid[i],NULL)){
+		if (err = pthread_join(tid[i],NULL)){
 			printf("ERROR joining thread!\n");
 			goto exit;
 		}
@@ -262,10 +377,120 @@ int lib_nvme_flush(int fd, int nsid){
 }
 
 #define MAX_NUM_ADDR 128
-#define SENSE_BUFF_LEN 64
-#define UNMAP_CMD 0x42
+#define SENSE_BUFF_LEN 32
 #define UNMAP_CMDLEN 10
 #define SG_DXFER_TO_DEV -2
+
+#define A_PRIME (lba_size * 256)
+#define IOVEC_ELEMS (1024*1024)
+#define DEF_TIMEOUT 40000	//ms
+
+// len: n bloks
+int lib_nvme_read_scsi(int fd, char* base, uint64_t len, uint64_t start_lba){
+	int i;
+	struct sg_iovec* iovec = malloc(IOVEC_ELEMS * sizeof(sg_iovec_t));
+
+	// fill in a READ_10 cmd
+	unsigned char rdCmd[10] = {READ_10, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+	rdCmd[2] = (unsigned char)((start_lba >> 24) & 0xff);
+	rdCmd[3] = (unsigned char)((start_lba >> 16) & 0xff);
+	rdCmd[4] = (unsigned char)((start_lba >> 8) & 0xff);
+	rdCmd[5] = (unsigned char)(start_lba & 0xff);
+	rdCmd[7] = (unsigned char)((len >> 8) & 0xff);
+	rdCmd[8] = (unsigned char)(len & 0xff);
+
+	// split into iovecs
+	uint64_t rem = len * lba_size;
+	for (i = 0; i < IOVEC_ELEMS; ++i){
+		iovec[i].iov_base = base + i * A_PRIME;
+		iovec[i].iov_len = (rem > A_PRIME) ? A_PRIME : rem;
+		if (rem <= A_PRIME)
+			break;
+		rem -= A_PRIME;
+	}
+	if (i >= IOVEC_ELEMS){
+		printf("Too many data!\n");
+		goto exit;
+	}
+//	printf("Iovec num: %d\n", i);
+
+	struct sg_io_hdr io_hdr;
+	unsigned char senseBuff[SENSE_BUFF_LEN];
+	memset(&io_hdr, 0, sizeof(sg_io_hdr_t));
+	io_hdr.interface_id = 'S';
+	io_hdr.cmd_len = sizeof(rdCmd);
+	io_hdr.cmdp = rdCmd;
+	io_hdr.dxfer_direction = SG_DXFER_FROM_DEV;
+	io_hdr.dxfer_len = lba_size * len;
+	io_hdr.iovec_count = i + 1;
+	io_hdr.dxferp = iovec;
+	io_hdr.mx_sb_len = SENSE_BUFF_LEN;
+	io_hdr.sbp = senseBuff;
+	io_hdr.timeout = DEF_TIMEOUT;
+	io_hdr.pack_id = start_lba;
+
+	int err = ioctl(fd, SG_IO, &io_hdr);
+	if (err != 0){
+		printf("lib_nvme_read_scsi:%d\n", errno);
+	}
+exit:
+	free(iovec);
+	return err;
+}
+
+// len: n bloks
+int lib_nvme_write_scsi(int fd, char* base, uint64_t len, uint64_t start_lba){
+	int i;
+	struct sg_iovec* iovec = malloc(IOVEC_ELEMS * sizeof(sg_iovec_t));
+
+	// fill in a READ_10 cmd
+	unsigned char wrCmd[10] = {WRITE_10, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+	wrCmd[2] = (unsigned char)((start_lba >> 24) & 0xff);
+	wrCmd[3] = (unsigned char)((start_lba >> 16) & 0xff);
+	wrCmd[4] = (unsigned char)((start_lba >> 8) & 0xff);
+	wrCmd[5] = (unsigned char)(start_lba & 0xff);
+	wrCmd[7] = (unsigned char)((len >> 8) & 0xff);
+	wrCmd[8] = (unsigned char)(len & 0xff);
+
+	// split into iovecs
+	uint64_t rem = len * lba_size;
+	for (i = 0; i < IOVEC_ELEMS; ++i){
+		iovec[i].iov_base = base + i * A_PRIME;
+		iovec[i].iov_len = (rem > A_PRIME) ? A_PRIME : rem;
+		if (rem <= A_PRIME)
+			break;
+		rem -= A_PRIME;
+	}
+	if (i >= IOVEC_ELEMS){
+		printf("Too many data!\n");
+		goto exit;
+	}
+	//printf("Iovec num: %d\n", i);
+
+	struct sg_io_hdr io_hdr;
+	unsigned char senseBuff[SENSE_BUFF_LEN];
+	memset(&io_hdr, 0, sizeof(sg_io_hdr_t));
+	io_hdr.interface_id = 'S';
+	io_hdr.cmd_len = sizeof(wrCmd);
+	io_hdr.cmdp = wrCmd;
+	io_hdr.dxfer_direction = SG_DXFER_FROM_DEV;
+	io_hdr.dxfer_len = lba_size * len;
+	io_hdr.iovec_count = i + 1;
+	io_hdr.dxferp = iovec;
+	io_hdr.mx_sb_len = SENSE_BUFF_LEN;
+	io_hdr.sbp = senseBuff;
+	io_hdr.timeout = DEF_TIMEOUT;
+	io_hdr.pack_id = start_lba;
+
+	int err = ioctl(fd, SG_IO, &io_hdr);
+	if (err != 0){
+		printf("lib_nvme_write_scsi:%d\n", errno);
+	}
+exit:
+	free(iovec);
+	return err;
+}
+
 int lib_nvme_unmap(int fd, int nsid, unsigned nlb, uint64_t start_lba){
 	unsigned char sense_b[SENSE_BUFF_LEN];
 	memset(sense_b, 0, sizeof(sense_b));
@@ -307,7 +532,7 @@ int lib_nvme_unmap(int fd, int nsid, unsigned nlb, uint64_t start_lba){
 	paramp[k++] = num & 0xff;
 
 	unsigned char uCmdBlk[UNMAP_CMDLEN] =
-		{UNMAP_CMD, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+		{0x42, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 	uCmdBlk[1] = 0; //archor
 	uCmdBlk[6] = 0; //group number
 	uCmdBlk[7] = (param_len >> 8) & 0xff;
