@@ -50,7 +50,7 @@ int main(){
 	printf("%c %c %c\n", data2[0], data2[131071], data2[131072]);
 
 	// unmap
-	printf("unmap cmd return: %d\n",lib_nvme_unmap(fd, nsid, 32*8, 0x0));
+	printf("unmap cmd return: %d\n",lib_nvme_unmap_scsi(fd, 32*8, 0x0));
 
 	// read again
 	char data3[4096 * 64] = "";

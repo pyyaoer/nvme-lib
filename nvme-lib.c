@@ -438,6 +438,7 @@ exit:
 	return err;
 }
 
+
 // len: n bloks
 int lib_nvme_write_scsi(int fd, char* base, uint64_t len, uint64_t start_lba){
 	int i;
@@ -491,7 +492,7 @@ exit:
 	return err;
 }
 
-int lib_nvme_unmap(int fd, int nsid, unsigned nlb, uint64_t start_lba){
+int lib_nvme_unmap_scsi(int fd, unsigned len, uint64_t start_lba){
 	unsigned char sense_b[SENSE_BUFF_LEN];
 	memset(sense_b, 0, sizeof(sense_b));
 
@@ -500,7 +501,7 @@ int lib_nvme_unmap(int fd, int nsid, unsigned nlb, uint64_t start_lba){
 	memset(addr_arr, 0, sizeof(addr_arr));
 	addr_arr[0] = start_lba;
 	memset(num_arr, 0, sizeof(num_arr));
-	num_arr[0] = nlb;
+	num_arr[0] = len;
 	int addr_arr_len = 1;
 
 	unsigned char paramp[8 + (MAX_NUM_ADDR * 16)];

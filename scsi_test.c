@@ -36,9 +36,9 @@ int main(int argc, char* argv[]){
 	printf("a[0]:%c, a[131071]:%c, a[131072]:%c\n", data2[0], data2[131071], data2[131072]);
 
 	int IOVN = atoi(argv[1]);
-	uint64_t base[1024*4];
-	uint64_t len[1024*4];
-	uint64_t start_pos[1024*4];
+	uint64_t base[1024*32];
+	uint64_t len[1024*32];
+	uint64_t start_pos[1024*32];
 
 	/************************************/
 	for (i = 0; i < IOVN; ++i){

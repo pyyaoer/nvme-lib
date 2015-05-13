@@ -73,7 +73,7 @@ int lib_nvme_read_scsi(int fd, char* base, uint64_t len, uint64_t start_lba);
 
 int lib_nvme_write_scsi(int fd, char* base, uint64_t len, uint64_t start_lba);
 
-int lib_nvme_unmap(int fd, int nsid, unsigned nlb, uint64_t start_lba);
+int lib_nvme_unmap_scsi(int fd, unsigned len, uint64_t start_lba);
 
 int lib_nvme_features(int fd, int set_get, int feature, int cdw11, int* res);
 

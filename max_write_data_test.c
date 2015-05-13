@@ -38,7 +38,7 @@ int main(){
 
 	// unmap
 	printf("\nUnmapping!\n");
-	printf("unmap cmd return: %d\n",lib_nvme_unmap(fd, nsid, 256, 0x0));
+	printf("unmap cmd return: %d\n",lib_nvme_unmap_scsi(fd, 256, 0x0));
 
 	// write data: 0~256 logical blocks
 	char data3[4096 * 64] = "";
@@ -56,7 +56,7 @@ int main(){
 
 	// unmap
 	printf("\nUnmapping!\n");
-	printf("unmap cmd return: %d\n",lib_nvme_unmap(fd, nsid, 256, 0x0));
+	printf("unmap cmd return: %d\n",lib_nvme_unmap_scsi(fd, 256, 0x0));
 
 	// write data: 0~511 logical blocks
 	char data5[4096 * 128] = "";
