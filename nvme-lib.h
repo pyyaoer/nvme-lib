@@ -51,8 +51,6 @@ void* lib_nvme_write_single_sync(void* args);
 int lib_nvme_batch_sync(int* fd, uint64_t* base, uint64_t* len, uint64_t* start_pos, int thread_num);
 //test end
 
-int lib_nvme_write_iosubmit_single(int fd, char* base, uint64_t len, uint64_t start_pos, int thread_num);
-
 int lib_nvme_write_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos, int thread_num);
 
 int lib_nvme_read_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos, int thread_num);
@@ -74,6 +72,8 @@ int lib_nvme_read_scsi(int fd, char* base, uint64_t len, uint64_t start_lba);
 int lib_nvme_write_scsi(int fd, char* base, uint64_t len, uint64_t start_lba);
 
 int lib_nvme_unmap_scsi(int fd, unsigned len, uint64_t start_lba);
+
+int lib_nvme_batch_scsi(int fd, const nvme_iovec_t *iov, uint32_t iovcnt);
 
 int lib_nvme_features(int fd, int set_get, int feature, int cdw11, int* res);
 

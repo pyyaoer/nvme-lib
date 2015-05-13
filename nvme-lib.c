@@ -155,48 +155,6 @@ exit:
 	return ret;
 }
 
-
-int lib_nvme_write_iosubmit_single(int fd, char* base, uint64_t len, uint64_t start_pos, int thread_num){
-	aio_context_t ctx;
-	struct iocb cb;
-	struct iocb *cbs[1];
-	struct io_event events[1];
-	int ret;
-
-	ctx = 0;
-	ret = io_setup(128, &ctx);
-	if (ret < 0){
-		printf("io_setup error");
-		return ret;
-	}
-
-	memset(&cb, 0, sizeof(cb));
-	cb.aio_fildes = fd;
-	cb.aio_lio_opcode = IOCB_CMD_PWRITE;
-
-	cb.aio_buf = (uint64_t)base;
-	cb.aio_offset = start_pos;
-	cb.aio_nbytes = len;
-
-	cbs[0] = &cb;
-	ret = io_submit(ctx, 1, cbs);
-	if (ret != 1){
-		if (ret < 0)
-			printf("io_submit error!");
-		else
-			printf("io_submit cannot submit IOs!");
-		return ret;
-	}
-
-	ret = io_getevents(ctx, 1, 1, events, NULL);
-	ret = io_destroy(ctx);
-	if (ret < 0){
-		printf("io_destroy error!");
-		return ret;
-	}
-	return 0;
-}
-
 int lib_nvme_read_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos, int thread_num){
 	aio_context_t ctx;
 	struct iocb cb;
@@ -457,6 +415,40 @@ void* lib_nvme_single_cmd_scsi(void* args){
 	}
 //	pthread_mutex_unlock(&mymutex);
 	return NULL;
+}
+
+int lib_nvme_batch_scsi(int fd, const nvme_iovec_t *iov, uint32_t iovcnt){
+	int i;
+	int err = -1;
+	int cpu = 0;
+	arg_struct_t* args = malloc(iovcnt*sizeof(arg_struct_t));
+	pthread_t* tid = malloc(iovcnt*sizeof(pthread_t));
+	for (i = 0; i < iovcnt; ++i){
+		args[i].cpu = cpu;
+		args[i].fd = fd;
+		args[i].data = (char*)iov[i].iov_base;
+		args[i].len = iov[i].iov_len;
+		args[i].opcode = iov[i].iov_opcode;
+		args[i].start_lba = iov[i].iov_lba;
+		cpu = (cpu + 1) % MY_CPU_NUM;
+	}
+	for (i = 0; i < iovcnt; ++i){
+		if (err = pthread_create(&tid[i], NULL, &lib_nvme_single_cmd_scsi, (void*)&args[i])){
+			printf("ERROR creating thread!\n");
+			goto exit;
+		}
+	}
+	for (i = 0; i < iovcnt; ++i){
+		if (err = pthread_join(tid[i],NULL)){
+			printf("ERROR joining thread!\n");
+			goto exit;
+		}
+	}
+exit:
+//	pthread_exit(NULL);
+	free(tid);
+	free(args);
+	return err;
 }
 
 // len: n bloks
