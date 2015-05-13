@@ -80,7 +80,7 @@ int lib_nvme_write_ioctl(int fd, int nsid, char* base, uint64_t len, uint64_t st
 	io.opcode = nvme_cmd_write;
 	io.addr = (unsigned long)base;
 	io.slba = start_lba;
-	io.nblocks = len;
+	io.nblocks = len-1;
 	int err = ioctl(fd, NVME_IOCTL_SUBMIT_IO, &io);
 
 	if (err < 0){
@@ -247,7 +247,7 @@ int lib_nvme_write(int fd, int nsid, char* base, uint64_t len, uint64_t start_lb
 		int tail = len % rw_max_size;
 		int i, err;
 		for (i = 0; i < num; ++i){
-			err = lib_nvme_write_ioctl(fd, nsid, base+i*rw_max_size*lba_size, rw_max_size-1, start_lba+i*rw_max_size);
+			err = lib_nvme_write_ioctl(fd, nsid, base+i*rw_max_size*lba_size, rw_max_size, start_lba+i*rw_max_size);
 			if(err < 0)
 				return err;
 		}
@@ -266,7 +266,7 @@ int lib_nvme_read_ioctl(int fd, int nsid, char* base, uint64_t len, uint64_t sta
 	io.opcode = nvme_cmd_read;
 	io.addr = (unsigned long)base;
 	io.slba = start_lba;
-	io.nblocks = len;
+	io.nblocks = len-1;
 
 	int err = ioctl(fd, NVME_IOCTL_SUBMIT_IO, &io);
 
@@ -285,7 +285,7 @@ int lib_nvme_read(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba
 		int tail = len % rw_max_size;
 		int i, err;
 		for (i = 0; i < num; ++i){
-			err = lib_nvme_read_ioctl(fd, nsid, base+i*rw_max_size*lba_size, rw_max_size-1, start_lba+i*rw_max_size);
+			err = lib_nvme_read_ioctl(fd, nsid, base+i*rw_max_size*lba_size, rw_max_size, start_lba+i*rw_max_size);
 			if(err < 0)
 				return err;
 		}
@@ -315,7 +315,7 @@ void* lib_nvme_single_cmd(void* args){
 			lib_nvme_read(pargs->fd, pargs->nsid, pargs->data, pargs->len, pargs->start_lba);
 			break;
 		case NVME_IOV_TRIM:
-			lib_nvme_unmap(pargs->fd, pargs->nsid, pargs->len, pargs->start_lba);
+			lib_nvme_unmap_scsi(pargs->fd, pargs->len, pargs->start_lba);
 			break;
 		default:
 			printf("Invalid opcode!\n");
@@ -335,7 +335,7 @@ int lib_nvme_batch_cmd(int fd, int nsid, const nvme_iovec_t *iov, uint32_t iovcn
 		args[i].fd = fd;
 		args[i].nsid = nsid;
 		args[i].data = (char*)iov[i].iov_base;
-		args[i].len = iov[i].iov_len;
+		args[i].len = iov[i].iov_len - 1;
 		args[i].opcode = iov[i].iov_opcode;
 		args[i].start_lba = iov[i].iov_lba;
 		cpu = (cpu + 1) % MY_CPU_NUM;
@@ -438,6 +438,26 @@ exit:
 	return err;
 }
 
+void* lib_nvme_single_cmd_scsi(void* args){
+	arg_struct_t* pargs = (arg_struct_t*)args;
+	if(set_cpu(pargs->cpu) < 0)
+		printf("Set CPU error.\n");
+	switch(pargs->opcode){
+		case NVME_IOV_WRITE:
+			lib_nvme_write_scsi(pargs->fd, pargs->data, pargs->len, pargs->start_lba);
+			break;
+		case NVME_IOV_READ:
+			lib_nvme_read_scsi(pargs->fd, pargs->data, pargs->len, pargs->start_lba);
+			break;
+		case NVME_IOV_TRIM:
+			lib_nvme_unmap_scsi(pargs->fd, pargs->len, pargs->start_lba);
+			break;
+		default:
+			printf("Invalid opcode!\n");
+	}
+//	pthread_mutex_unlock(&mymutex);
+	return NULL;
+}
 
 // len: n bloks
 int lib_nvme_write_scsi(int fd, char* base, uint64_t len, uint64_t start_lba){
@@ -553,7 +573,7 @@ int lib_nvme_unmap_scsi(int fd, unsigned len, uint64_t start_lba){
 
 	int err = ioctl(fd, SG_IO, &io_hdr);
 	if (err < 0){
-		printf("lib_nvme_unmap:%d\n", errno);
+		printf("lib_nvme_unmap_scsi:%d\n", errno);
 	}
 	return err;
 }
