@@ -31,10 +31,8 @@ typedef struct arg_struct {
 	int cpu;
 	int fd;
 	int nsid;
-	uint32_t opcode;
-	char* data;
-	uint64_t len;
-	uint64_t start_lba;
+	int iovcnt;
+	nvme_iovec_t* iovec;
 } arg_struct_t;
 
 //just for test
@@ -53,25 +51,25 @@ int lib_nvme_write_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos
 
 int lib_nvme_read_iosubmit(int fd, char* base, uint64_t len, uint64_t start_pos, int thread_num);
 
-int lib_nvme_write(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
+int lib_nvme_write(int fd, int nsid, uint64_t base, uint64_t len, uint64_t start_lba);
 
-int lib_nvme_read(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
+int lib_nvme_read(int fd, int nsid, uint64_t base, uint64_t len, uint64_t start_lba);
 
-int lib_nvme_write_ioctl(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
+int lib_nvme_write_ioctl(int fd, int nsid, uint64_t base, uint64_t len, uint64_t start_lba);
 
-int lib_nvme_read_ioctl(int fd, int nsid, char* base, uint64_t len, uint64_t start_lba);
+int lib_nvme_read_ioctl(int fd, int nsid, uint64_t base, uint64_t len, uint64_t start_lba);
 
-int lib_nvme_batch_cmd(int fd, int nsid, const nvme_iovec_t *iov, uint32_t iovcnt);
+int lib_nvme_batch_cmd(int fd, int nsid, nvme_iovec_t *iov, uint32_t iovcnt);
 
 int lib_nvme_flush(int fd, int nsid);
 
-int lib_nvme_read_scsi(int fd, char* base, uint64_t len, uint64_t start_lba);
+int lib_nvme_read_scsi(int fd, uint64_t base, uint64_t len, uint64_t start_lba);
 
-int lib_nvme_write_scsi(int fd, char* base, uint64_t len, uint64_t start_lba);
+int lib_nvme_write_scsi(int fd, uint64_t base, uint64_t len, uint64_t start_lba);
 
 int lib_nvme_unmap_scsi(int fd, unsigned len, uint64_t start_lba);
 
-int lib_nvme_batch_scsi(int fd, const nvme_iovec_t *iov, uint32_t iovcnt);
+int lib_nvme_batch_scsi(int fd, nvme_iovec_t *iov, uint32_t iovcnt);
 
 int lib_nvme_features(int fd, int set_get, int feature, int cdw11, int* res);
 

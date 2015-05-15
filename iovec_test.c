@@ -55,7 +55,7 @@ int main(){
 	ftime(&start_t);
 	for (i = 0; i < IOVN; ++i){
 		fd = open("/dev/nvme0n1", O_RDWR|O_NONBLOCK|O_DIRECT);
-		lib_nvme_write(fd, nsid, (char*)iovec[i].iov_base, iovec[i].iov_len, iovec[i].iov_lba);
+		lib_nvme_write(fd, nsid, iovec[i].iov_base, iovec[i].iov_len, iovec[i].iov_lba);
 		close(fd);
 	}
 	ftime(&end_t);
