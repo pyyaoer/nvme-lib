@@ -3,6 +3,7 @@
 
 static uint64_t rw_max_size = 256;
 static uint64_t lba_size = 512;
+static int cpu_num = 16;
 pthread_mutex_t mymutex=PTHREAD_MUTEX_INITIALIZER;
 
 
@@ -32,7 +33,7 @@ int lib_nvme_batch_sync(int* fd, uint64_t* base, uint64_t* len, uint64_t* start_
 		args[i].base = (char*)base[i];
 		args[i].len = len[i];
 		args[i].start_pos = start_pos[i];
-		cpu = (cpu + 1) % MY_CPU_NUM;
+		cpu = (cpu + 1) % cpu_num;
 	}
 	for (i = 0; i < thread_num; ++i){
 		if (err = pthread_create(&tid[i], NULL, &lib_nvme_write_single_sync, (void*)&args[i])){
@@ -260,6 +261,10 @@ inline int set_cpu(int i){
 	return pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
 }
 
+inline int get_cpu_num(){
+	return sysconf(_SC_NPROCESSORS_ONLN);
+}
+
 void* lib_nvme_single_cmd(void* args){
 //	pthread_mutex_lock(&mymutex);
 	arg_struct_t* pargs = (arg_struct_t*)args;
@@ -296,7 +301,7 @@ int lib_nvme_batch_cmd(int fd, int nsid, const nvme_iovec_t *iov, uint32_t iovcn
 		args[i].len = iov[i].iov_len - 1;
 		args[i].opcode = iov[i].iov_opcode;
 		args[i].start_lba = iov[i].iov_lba;
-		cpu = (cpu + 1) % MY_CPU_NUM;
+		cpu = (cpu + 1) % cpu_num;
 	}
 	for (i = 0; i < iovcnt; ++i){
 		if (err = pthread_create(&tid[i], NULL, &lib_nvme_single_cmd, (void*)&args[i])){
@@ -430,7 +435,7 @@ int lib_nvme_batch_scsi(int fd, const nvme_iovec_t *iov, uint32_t iovcnt){
 		args[i].len = iov[i].iov_len;
 		args[i].opcode = iov[i].iov_opcode;
 		args[i].start_lba = iov[i].iov_lba;
-		cpu = (cpu + 1) % MY_CPU_NUM;
+		cpu = (cpu + 1) % cpu_num;
 	}
 	for (i = 0; i < iovcnt; ++i){
 		if (err = pthread_create(&tid[i], NULL, &lib_nvme_single_cmd_scsi, (void*)&args[i])){

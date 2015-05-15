@@ -20,8 +20,6 @@
 #define NVME_IOV_READ 0X02
 #define NVME_IOV_TRIM 0x03
 
-#define MY_CPU_NUM 16
-
 typedef struct nvme_iovec {
 	uint64_t iov_base;
 	uint64_t iov_len;
