@@ -292,34 +292,35 @@ void* lib_nvme_single_cmd_ioctl(void* args){
 	return NULL;
 }
 
-int lib_nvme_batch_cmd(int fd, int nsid, nvme_iovec_t *iov, uint32_t iovcnt){
+int lib_nvme_batch_cmd(int fd, int nsid, nvme_iovec_t *iov, uint32_t iovcnt, int thread_num){
 	int i;
 	int err = -1;
-	arg_struct_t* args = malloc(cpu_num*sizeof(arg_struct_t));
-	pthread_t* tid = malloc(cpu_num*sizeof(pthread_t));
-	int per_num = iovcnt / cpu_num;
-	int tail_num = iovcnt - per_num * (cpu_num - 1);
-	for (i = 0; i < cpu_num; ++i){
-		args[i].cpu = i;
+	int cpu = 0;
+	arg_struct_t* args = malloc(thread_num*sizeof(arg_struct_t));
+	pthread_t* tid = malloc(thread_num*sizeof(pthread_t));
+	int per_num = iovcnt / thread_num;
+	int tail_num = iovcnt - per_num * (thread_num - 1);
+	for (i = 0; i < thread_num; ++i){
+		args[i].cpu = cpu;
 		args[i].fd = fd;
 		args[i].nsid = nsid;
-		args[i].iovcnt = (i==(cpu_num-1)) ? tail_num : per_num;
+		args[i].iovcnt = (i==(thread_num-1)) ? tail_num : per_num;
 		args[i].iovec = &iov[per_num*i];
+		cpu = (cpu + 1) % cpu_num;
 	}
-	for (i = 0; i < cpu_num; ++i){
+	for (i = 0; i < thread_num; ++i){
 		if (err = pthread_create(&tid[i], NULL, &lib_nvme_single_cmd_ioctl, (void*)&args[i])){
 			printf("ERROR creating thread!\n");
 			goto exit;
 		}
 	}
-	for (i = 0; i < cpu_num; ++i){
+	for (i = 0; i < thread_num; ++i){
 		if (err = pthread_join(tid[i],NULL)){
 			printf("ERROR joining thread!\n");
 			goto exit;
 		}
 	}
 exit:
-//	pthread_exit(NULL);
 	free(tid);
 	free(args);
 	return err;
@@ -430,26 +431,28 @@ void* lib_nvme_single_cmd_scsi(void* args){
 	return NULL;
 }
 
-int lib_nvme_batch_scsi(int fd, nvme_iovec_t *iov, uint32_t iovcnt){
+int lib_nvme_batch_scsi(int fd, nvme_iovec_t *iov, uint32_t iovcnt, int thread_num){
 	int i;
 	int err = -1;
-	arg_struct_t* args = malloc(cpu_num*sizeof(arg_struct_t));
-	pthread_t* tid = malloc(cpu_num*sizeof(pthread_t));
-	int per_num = iovcnt / cpu_num;
-	int tail_num = iovcnt - per_num * (cpu_num - 1);
-	for (i = 0; i < cpu_num; ++i){
-		args[i].cpu = i;
+	int cpu = 0;
+	arg_struct_t* args = malloc(thread_num*sizeof(arg_struct_t));
+	pthread_t* tid = malloc(thread_num*sizeof(pthread_t));
+	int per_num = iovcnt / thread_num;
+	int tail_num = iovcnt - per_num * (thread_num - 1);
+	for (i = 0; i < thread_num; ++i){
+		args[i].cpu = cpu;
 		args[i].fd = fd;
-		args[i].iovcnt = (i==(cpu_num-1)) ? tail_num : per_num;
+		args[i].iovcnt = (i==(thread_num-1)) ? tail_num : per_num;
 		args[i].iovec = &iov[per_num*i];
+		cpu = (cpu + 1) % cpu_num;
 	}
-	for (i = 0; i < cpu_num; ++i){
+	for (i = 0; i < thread_num; ++i){
 		if (err = pthread_create(&tid[i], NULL, &lib_nvme_single_cmd_scsi, (void*)&args[i])){
 			printf("ERROR creating thread!\n");
 			goto exit;
 		}
 	}
-	for (i = 0; i < cpu_num; ++i){
+	for (i = 0; i < thread_num; ++i){
 		if (err = pthread_join(tid[i],NULL)){
 			printf("ERROR joining thread!\n");
 			goto exit;
@@ -675,15 +678,3 @@ int lib_nvme_mdts(int fd, int nsid){
 	lib_nvme_identify(fd, nsid, &ctrl, 1);
 	return (ctrl.mdts == 0) ? 0 : (1 << ctrl.mdts);
 }
-
-/*
-int lib_nvme_setup_prps(uint64_t data, int data_len, uint64_t* prp1, uint64_t* prp2){
-	int pgsize = getpagesize();
-	int offset = data % pgsize;
-	int nprps = data_len / pgsize;
-
-	int length = data_len + offset - pgsize;
-	if (length <= 0)
-		return data_len;
-}
-*/

@@ -59,7 +59,7 @@ int lib_nvme_write_ioctl(int fd, int nsid, uint64_t base, uint64_t len, uint64_t
 
 int lib_nvme_read_ioctl(int fd, int nsid, uint64_t base, uint64_t len, uint64_t start_lba);
 
-int lib_nvme_batch_cmd(int fd, int nsid, nvme_iovec_t *iov, uint32_t iovcnt);
+int lib_nvme_batch_cmd(int fd, int nsid, nvme_iovec_t *iov, uint32_t iovcnt, int thread_num);
 
 int lib_nvme_flush(int fd, int nsid);
 
@@ -69,7 +69,7 @@ int lib_nvme_write_scsi(int fd, uint64_t base, uint64_t len, uint64_t start_lba)
 
 int lib_nvme_unmap_scsi(int fd, unsigned len, uint64_t start_lba);
 
-int lib_nvme_batch_scsi(int fd, nvme_iovec_t *iov, uint32_t iovcnt);
+int lib_nvme_batch_scsi(int fd, nvme_iovec_t *iov, uint32_t iovcnt, int thread_num);
 
 int lib_nvme_features(int fd, int set_get, int feature, int cdw11, int* res);
 
